@@ -3,13 +3,24 @@
     <h1>Trip Planner</h1>
     <h3>Origin:{{origin}}</h3>
     <input v-model="origin" placeholder="your origin" />
+
+    <select v-if="suggestedPlaces" v-model="selectedCity">
+      <option
+        v-bind:key="index"
+        v-for="(place, index) in suggestedPlaces"
+        v-bind:value="place.PlaceName"
+      >{{place.PlaceName}},{{place.CountryName}}</option>
+    </select>
+
     <button v-on:click="searchLiveFlights">Find your next trip</button>
     <Results v-bind:sortedResults="this.sortedResults" />
   </div>
 </template>
+
 <script>
 import Results from "./components/Results.vue";
 import config from "../config.js";
+import _ from "lodash";
 
 export default {
   name: "app",
@@ -18,15 +29,34 @@ export default {
       origin: "",
       results: [],
       sortedResults: [],
-      selectedCity: {},
+      suggestedPlaces: [],
+      selectedCity: "default",
       cities: [
         { value: "SYD", text: "Sydney" },
         { value: "MEL", text: "Melbourne" }
       ]
     };
   },
+  watch: {
+    origin: function() {
+      this.debouncedAutoSuggestPlaces();
+    },
+    // when select dropdown changes, get the city Id code and run the sky scanner fetch request with the code
+    selectedCity: function() {
+      const selectedCityCode = this.suggestedPlaces.find(
+        place => place.PlaceName === this.selectedCity
+      ).CityId;
+      this.searchLiveFlights(selectedCityCode);
+    }
+  },
+  created: function() {
+    this.debouncedAutoSuggestPlaces = _.debounce(function() {
+      this.autoSuggestPlaces(this.origin), 500;
+    });
+  },
+
   methods: {
-    searchLiveFlights: function() {
+    searchLiveFlights: function(query) {
       fetch(
         "https://skyscanner-skyscanner-flight-search-v1.p.rapidapi.com/apiservices/pricing/v1.0",
         {
@@ -43,7 +73,7 @@ export default {
             country: "US",
             currency: "USD",
             locale: "en-US",
-            originPlace: "SFO-sky",
+            originPlace: query,
             destinationPlace: "ATH-sky",
             outboundDate: "2019-09-22",
             adults: "1"
@@ -141,6 +171,9 @@ export default {
     },
 
     autoSuggestPlaces: function(query) {
+      if (this.origin.length < 2) {
+        return;
+      }
       fetch(
         `https://skyscanner-skyscanner-flight-search-v1.p.rapidapi.com/apiservices/autosuggest/v1.0/UK/GBP/en-GB/?query=${query}`,
         {
@@ -153,7 +186,9 @@ export default {
         }
       )
         .then(response => {
-          console.log(response);
+          response.json().then(data => {
+            this.suggestedPlaces = data.Places;
+          });
         })
         .catch(err => {
           console.log(err);

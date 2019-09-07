@@ -2,12 +2,22 @@
   <div id="app">
     <h1>Trip Planner</h1>
     <h3>Origin:{{origin}}</h3>
-    <input v-model="origin" placeholder="your origin" />
 
-    <select v-if="suggestedPlaces" v-model="selectedCity">
+    <input v-model="origin" placeholder="your origin" />
+    <select v-model="selectedOrigin">
       <option
         v-bind:key="index"
-        v-for="(place, index) in suggestedPlaces"
+        v-for="(place, index) in suggestedOrigins[0]"
+        v-bind:value="place.PlaceName"
+      >{{place.PlaceName}},{{place.CountryName}}</option>
+    </select>
+    <br />
+
+    <input v-model="destination" placeholder="your destination" />
+    <select v-model="selectedDestination">
+      <option
+        v-bind:key="index"
+        v-for="(place, index) in suggestedDestinations[0]"
         v-bind:value="place.PlaceName"
       >{{place.PlaceName}},{{place.CountryName}}</option>
     </select>
@@ -22,41 +32,73 @@ import Results from "./components/Results.vue";
 import config from "../config.js";
 import _ from "lodash";
 
+const cityCodes = require("../utils/cityCodes2.json");
+
 export default {
   name: "app",
   data() {
     return {
       origin: "",
+      destination: "",
       results: [],
       sortedResults: [],
-      suggestedPlaces: [],
-      selectedCity: "default",
-      cities: [
-        { value: "SYD", text: "Sydney" },
-        { value: "MEL", text: "Melbourne" }
-      ]
+      suggestedOrigins: [],
+      suggestedDestinations: [],
+      selectedOrigin: "",
+      selectedDestination: "",
+      originCityCode: "",
+      destinationCityCode: ""
     };
   },
   watch: {
     origin: function() {
-      this.debouncedAutoSuggestPlaces();
+      this.debouncedAutoSuggestPlaces(this.origin, this.suggestedOrigins);
+    },
+    destination: function() {
+      this.debouncedAutoSuggestPlaces(
+        this.destination,
+        this.suggestedDestinations
+      );
     },
     // when select dropdown changes, get the city Id code and run the sky scanner fetch request with the code
-    selectedCity: function() {
-      const selectedCityCode = this.suggestedPlaces.find(
-        place => place.PlaceName === this.selectedCity
-      ).CityId;
-      this.searchLiveFlights(selectedCityCode);
+    selectedOrigin: function() {
+      this.originCityCode = this.findCityCode(
+        this.selectedOrigin,
+        this.suggestedOrigins[0]
+      );
+
+      // if (originCityCode && destinationCityCode) {
+      if (this.originCityCode && this.destinationCityCode) {
+        this.searchLiveFlights(this.originCityCode, this.destinationCityCode);
+      }
+    },
+    selectedDestination: function() {
+      this.destinationCityCode = this.findCityCode(
+        this.selectedDestination,
+        this.suggestedDestinations[0]
+      );
+      if (this.originCityCode && this.destinationCityCode) {
+        this.searchLiveFlights(this.originCityCode, this.destinationCityCode);
+      }
     }
   },
+
   created: function() {
-    this.debouncedAutoSuggestPlaces = _.debounce(function() {
-      this.autoSuggestPlaces(this.origin), 500;
+    this.debouncedAutoSuggestPlaces = _.debounce(function(query, target) {
+      this.autoSuggestPlaces(query, target), 500;
     });
   },
 
   methods: {
-    searchLiveFlights: function(query) {
+    findCityCode: function(query, array) {
+      const selectedCityCode = array.find(place => place.PlaceName === query)
+        .PlaceId;
+      return selectedCityCode;
+    },
+    searchLiveFlights: function(origin, destination) {
+      // TODO only search if there is no duplication in destination
+      // if(sortResults.some)
+
       fetch(
         "https://skyscanner-skyscanner-flight-search-v1.p.rapidapi.com/apiservices/pricing/v1.0",
         {
@@ -73,15 +115,15 @@ export default {
             country: "US",
             currency: "USD",
             locale: "en-US",
-            originPlace: query,
-            destinationPlace: "ATH-sky",
+            originPlace: origin,
+            destinationPlace: destination,
             outboundDate: "2019-09-22",
             adults: "1"
           })
         }
       )
         .then(response => {
-          if (response.status === 429) {
+          if (response.status === 429 || response.status === 400) {
             return;
           }
           const location = response.headers.get("Location");
@@ -138,6 +180,7 @@ export default {
         const { Price, DeeplinkUrl, Agents } = bestDeal;
 
         const leg = Legs.find(leg => leg.Id === itinerary.OutboundLegId);
+
         const { Departure, Arrival, OriginStation, DestinationStation } = leg;
 
         // get origin
@@ -159,19 +202,24 @@ export default {
           Price,
           link: DeeplinkUrl
         };
-        // console.log(destination);
+
+        //TODO stop duplication
         this.results.push(massagedData);
       });
 
-      this.sortedResults = this.results.sort((a, b) =>
-        a.Price > b.Price ? 1 : -1
-      );
+      // this.sortedResults = this.results.sort((a, b) =>
+      //   a.Price > b.Price ? 1 : -1
+      // );
 
-      console.log(this.sortedResults);
+      this.sortedResults.push(
+        this.results.reduce(function(prev, curr) {
+          return prev.Price < curr.Price ? prev : curr;
+        })
+      );
     },
 
-    autoSuggestPlaces: function(query) {
-      if (this.origin.length < 2) {
+    autoSuggestPlaces: function(query, target) {
+      if (query < 2) {
         return;
       }
       fetch(
@@ -187,7 +235,10 @@ export default {
       )
         .then(response => {
           response.json().then(data => {
-            this.suggestedPlaces = data.Places;
+            // this.$set("suggestedOrigins", data.Places);
+            // target = [...data.Places];
+            target.push(data.Places);
+            // this.suggestedOrigins = data.Places;
           });
         })
         .catch(err => {

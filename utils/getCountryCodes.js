@@ -1,7 +1,7 @@
 // this was used in the main App.vue file in mounted
 // as a hacky way to make list of every city's sky scanner cityId codes which are not available online
 
-const getCodes = function () {
+mounted() {
     var countries = require("../utils/countries.json"); //with path
     var cities = [];
     countries.forEach((country, index) => {
@@ -21,7 +21,7 @@ const getCodes = function () {
                             return;
                         }
                         cities.push({
-                            id: city.CityId,
+                            id: city.PlaceId,
                             country: city.CountryName
                         });
                         console.log(city.CountryName);
@@ -43,4 +43,4 @@ const getCodes = function () {
                 console.log(err);
             });
     });
-}
+},

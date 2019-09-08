@@ -21,8 +21,12 @@
         v-bind:value="place.PlaceName"
       >{{place.PlaceName}},{{place.CountryName}}</option>
     </select>
+    date:{{flightDate}}
+    <datepicker v-model="flightDate" :format="customFormatter" name="datePicker">Date</datepicker>
 
-    <button v-on:click="searchLiveFlights">Find your next trip</button>
+    <button
+      v-on:click="searchLiveFlights(originCityCode,destinationCityCode,flightDate)"
+    >Find your next trip</button>
     <Results v-bind:sortedResults="this.sortedResults" />
   </div>
 </template>
@@ -31,6 +35,8 @@
 import Results from "./components/Results.vue";
 import config from "../config.js";
 import _ from "lodash";
+import Datepicker from "vuejs-datepicker";
+import moment from "moment";
 
 const cityCodes = require("../utils/cityCodes2.json");
 
@@ -38,6 +44,7 @@ export default {
   name: "app",
   data() {
     return {
+      flightDate: "",
       origin: "",
       destination: "",
       results: [],
@@ -66,20 +73,12 @@ export default {
         this.selectedOrigin,
         this.suggestedOrigins[0]
       );
-
-      // if (originCityCode && destinationCityCode) {
-      if (this.originCityCode && this.destinationCityCode) {
-        this.searchLiveFlights(this.originCityCode, this.destinationCityCode);
-      }
     },
     selectedDestination: function() {
       this.destinationCityCode = this.findCityCode(
         this.selectedDestination,
         this.suggestedDestinations[0]
       );
-      if (this.originCityCode && this.destinationCityCode) {
-        this.searchLiveFlights(this.originCityCode, this.destinationCityCode);
-      }
     }
   },
 
@@ -95,9 +94,16 @@ export default {
         .PlaceId;
       return selectedCityCode;
     },
-    searchLiveFlights: function(origin, destination) {
+    searchLiveFlights: function(origin, destination, flightDate) {
       // TODO only search if there is no duplication in destination
       // if(sortResults.some)
+      console.log(flightDate);
+      debugger;
+      // if (originCityCode && destinationCityCode) {
+      if (!origin && !destination && !flightDate) {
+        debugger;
+        return;
+      }
 
       fetch(
         "https://skyscanner-skyscanner-flight-search-v1.p.rapidapi.com/apiservices/pricing/v1.0",
@@ -117,7 +123,9 @@ export default {
             locale: "en-US",
             originPlace: origin,
             destinationPlace: destination,
-            outboundDate: "2019-09-22",
+            outboundDate: flightDate,
+
+            // outboundDate: "2019-09-22",
             adults: "1"
           })
         }
@@ -244,10 +252,15 @@ export default {
         .catch(err => {
           console.log(err);
         });
+    },
+    customFormatter(date) {
+      this.flightDate = moment(date).format("YYYY-MM-DD");
+      return moment(date).format("YYYY-MM-DD");
     }
   },
   components: {
-    Results
+    Results,
+    Datepicker
   }
 };
 </script>

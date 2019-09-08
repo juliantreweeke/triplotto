@@ -71,13 +71,13 @@ export default {
     selectedOrigin: function() {
       this.originCityCode = this.findCityCode(
         this.selectedOrigin,
-        this.suggestedOrigins[0]
+        this.suggestedOrigins
       );
     },
     selectedDestination: function() {
       this.destinationCityCode = this.findCityCode(
         this.selectedDestination,
-        this.suggestedDestinations[0]
+        this.suggestedDestinations
       );
     }
   },
@@ -131,9 +131,15 @@ export default {
         }
       )
         .then(response => {
-          if (response.status === 429 || response.status === 400) {
+          if (response.status === 429) {
+            alert("please try again in a minute");
             return;
           }
+          if (response.status === 400) {
+            alert("no results");
+            return;
+          }
+
           const location = response.headers.get("Location");
           if (location) {
             const sessionKey = location.split("/").pop();
@@ -241,12 +247,11 @@ export default {
           }
         }
       )
-        .then(response => {
-          response.json().then(data => {
-            // this.$set("suggestedOrigins", data.Places);
-            // target = [...data.Places];
+        .then(function(response) {
+          response.json().then(function(data) {
+            // TODO look at this unusual scoping behaviour here
+            target.length = 0;
             target.push(data.Places);
-            // this.suggestedOrigins = data.Places;
           });
         })
         .catch(err => {
